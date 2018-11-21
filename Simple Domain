@@ -15,6 +15,7 @@
         (observation_at ?o - observation_point ?wp - waypoint)
 	(scan_sensor_free ?s - sensors)
 	(available ?r - robot)
+	(robot_capable  ?r - robot)
 	
         (undocked ?r - robot)
 	(docked ?r - robot)
