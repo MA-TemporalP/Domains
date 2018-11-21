@@ -1,0 +1,294 @@
+(define (domain environment_complex)
+
+(:requirements :strips :typing :fluents :numeric-fluents :disjunctive-preconditions :durative-actions :action-costs :negative-preconditions)
+
+(:types
+	      waypoint
+	      robot_explorer
+        robot_survey
+	      observation_point
+				sensors
+)
+(:predicates
+	      (robot_explorer_at ?v - robot_explorer ?wp - waypoint)
+			  (robot_survey_at ?y - robot_survey ?wp - waypoint)
+	      (dock_at ?wp - waypoint)
+        (control_centre_at ?wp -waypoint)
+        (observation_at ?o - observation_point ?wp - waypoint)
+				(camera_free ?s - sensors)
+				(scan_sensor_free ?s - sensors)
+				(available ?v - robot_explorer)
+				(robot_capable  ?v - robot_explorer)
+
+        (undocked_explorer ?v - robot_explorer)
+	      (docked_explorer ?v - robot_explorer)
+        (undocked_survey ?y - robot_survey)
+	      (docked_survey ?y - robot_survey)
+
+        (send_image_data ?wp -waypoint)
+        (send_sample_data ?wp -waypoint)
+        (take_image_data ?v -robot_explorer ?o -observation_point ?wp -waypoint)
+        (take_sample_data ?v -robot_explorer ?o -observation_point ?wp -waypoint)
+
+        (visited ?wp - waypoint)
+        (ob-explored ?o -observation_point)
+        (inspected ?wp -waypoint)
+        (connected ?from ?to - waypoint)
+        (image_observed ?o - observation_point)
+        (sample_data_obtained ?o - observation_point)
+        (scan_measured ?o - observation_point)
+        (target_inquired ?o - observation_point)
+				(rotated ?v - robot_explorer ?o - observation_point)
+)
+
+(:functions
+        (distance ?wp1 ?wp2 - waypoint)
+	      (total-distance)
+	      (energy_capacity_explorer ?v - robot_explorer)
+        (consumption_rate_explorer ?v - robot_explorer)
+	      (energy_explorer ?v - robot_explorer)
+
+        (energy_capacity_survey ?y - robot_survey)
+        (consumption_rate_survey ?y -robot_survey)
+	      (energy_survey ?y - robot_survey)
+
+        (sample_data ?v - robot_explorer)
+        (sample_data_capacity ?v - robot_explorer)
+        (image_data ?v - robot_explorer)
+        (image_data_capacity ?v -robot_explorer)
+        (observation_point_need_data ?o -observation_point)
+        (observation_point_need_image ?o -observation_point)
+
+;;observation_point_need_data & observation_point_need_image  are associated
+;;with the requirement to take information of the data sample of images in
+;;particular points.
+
+)
+
+;; Move between any two waypoints, avoiding terrain explorer_1
+(:durative-action navigate_explorer
+	:parameters (?v - robot_explorer ?from ?to - waypoint)
+	:duration ( = ?duration (* (distance ?from ?to) 5))
+	:condition (and
+		(at start (robot_explorer_at ?v ?from))
+    (at start (undocked_explorer ?v))
+    (at start (>= (energy_explorer ?v) (+ (* (distance ?from ?to)(consumption_rate_explorer ?v)) 10))))
+	:effect (and
+		(at end (visited ?to))
+    (at end (robot_explorer_at ?v ?to))
+    (at start (not (robot_explorer_at ?v ?from)))
+    (at end (decrease (energy_explorer ?v)(* (distance ?from ?to)(consumption_rate_explorer ?v))))
+		(at end (increase (total-distance) (distance ?from ?to))))
+)
+
+;; Move between any two waypoints, avoiding terrain survey_1
+(:durative-action navigate_survey
+	:parameters (?y - robot_survey ?from ?to - waypoint)
+	:duration ( = ?duration (* (distance ?from ?to) 5))
+	:condition (and
+		(at start (robot_survey_at ?y ?from))
+    (at start (undocked_survey ?y))
+    (at start (>= (energy_survey ?y) (+ (* (distance ?from ?to)(consumption_rate_survey ?y)) 10))))
+	:effect (and
+		(at end (inspected ?to))
+    (at end (robot_survey_at ?y ?to))
+    (at start (not (robot_survey_at ?y ?from)))
+    (at end (decrease (energy_survey ?y)(* (distance ?from ?to)(consumption_rate_survey ?y))))
+  	(at end (increase (total-distance) (distance ?from ?to))))
+)
+;; explore the observation point
+(:durative-action explore_ob
+	:parameters (?v - robot_explorer  ?wp - waypoint ?o - observation_point)
+	:duration ( = ?duration  40)
+	:condition (and
+	  (over all (robot_explorer_at ?v ?wp))
+   	(over all (observation_at ?o  ?wp))
+    (at start (>= (energy_explorer ?v)  20)))
+	:effect (and
+		(at end (ob-explored  ?o))
+	  (at end (rotated ?v ?o))
+    (at end (robot_explorer_at ?v ?wp))
+    (at end (decrease (energy_explorer ?v) 5))
+    (at end (increase (total-distance) 2)))
+
+)
+
+;; Dock to charge explorer
+(:durative-action dock_explorer
+	:parameters (?v - robot_explorer ?from ?to - waypoint)
+	:duration ( = ?duration (+ (* (distance ?from ?to) 5) 50))
+	:condition (and
+		(over all (dock_at ?to))
+		(at start (robot_explorer_at ?v ?from))
+		(at start (undocked_explorer ?v))
+    (at start (>= (energy_explorer ?v)(*(distance ?from ?to)(consumption_rate_explorer ?v))))
+    (at start (< (energy_explorer ?v)(* (energy_capacity_explorer ?v) 0.4))))
+	:effect (and
+		(at end (docked_explorer ?v))
+		(at start (not (undocked_explorer ?v)))
+    (at end (robot_explorer_at ?v ?to))
+    (at start (not (robot_explorer_at ?v ?from)))
+    (at end (assign (energy_explorer ?v)(energy_capacity_explorer ?v))))
+)
+
+;; Dock to charge survey
+(:durative-action dock_survey
+	:parameters (?y - robot_survey ?from ?to - waypoint)
+	:duration ( = ?duration (+ (* (distance ?from ?to) 5) 50))
+	:condition (and
+		(over all (dock_at ?to))
+		(at start (robot_survey_at ?y ?from))
+		(at start (undocked_survey ?y))
+    (at start (>= (energy_survey ?y)(*(distance ?from ?to)(consumption_rate_survey ?y))))
+    (at start (< (energy_survey ?y)(* (energy_capacity_survey ?y) 0.4))))
+	:effect (and
+		(at end (docked_survey ?y))
+		(at start (not (undocked_survey ?y)))
+    (at end (robot_survey_at ?y ?to))
+    (at start (not (robot_survey_at ?y ?from)))
+    (at end (assign (energy_survey ?y)(energy_capacity_survey ?y))))
+)
+(:durative-action undock_explorer
+	:parameters (?v - robot_explorer ?wp -waypoint)
+	:duration ( = ?duration 10)
+	:condition (and
+		(over all (dock_at ?wp))
+		(at start (docked_explorer ?v)))
+	:effect (and
+		(at start (not (docked_explorer ?v)))
+		(at end (undocked_explorer ?v)))
+)
+(:durative-action undock_survey
+	:parameters (?y - robot_survey ?wp - waypoint)
+	:duration ( = ?duration 10)
+	:condition (and
+		(over all (dock_at ?wp))
+		(at start (docked_survey ?y)))
+	:effect (and
+		(at start (not (docked_survey ?y)))
+		(at end (undocked_survey ?y)))
+)
+;; this two durative-action functions are associated with the transmission of the information
+;; it makes the information transmission
+
+(:durative-action send-sample_data
+	:parameters (?v - robot_explorer ?wp - waypoint)
+	:duration ( = ?duration 60)
+	:condition (and
+		(over all (robot_explorer_at ?v ?wp))
+		(over all (control_centre_at ?wp))
+		(at start (>= (sample_data ?v) (* (sample_data_capacity ?v) 0.7))))
+	:effect (and
+		(at end (assign (sample_data ?v) 0)))
+)
+
+(:durative-action send-image_data
+	:parameters (?v - robot_explorer ?wp - waypoint)
+	:duration ( = ?duration 60)
+	:condition (and
+		(over all (robot_explorer_at ?v ?wp))
+		(over all (control_centre_at ?wp))
+		(at start (>= (image_data ?v) (* (image_data_capacity ?v) 0.7))))
+  :effect (and
+		(at end (assign (image_data ?v) 0)))
+)
+
+;; the next three acctions are associated with the implementation of the data reading and camera
+;; the function will allow te camera tp take a number of pictures.
+
+(:durative-action take-image_data
+	:parameters (?v - robot_explorer ?o - observation_point ?wp - waypoint ?s - sensors)
+	:duration ( = ?duration 30)
+	:condition (and
+		(over all (robot_explorer_at ?v ?wp))
+		(over all (observation_at ?o  ?wp))
+		(over all (ob-explored  ?o))
+		(at start (available ?v))
+		(over all (robot_capable ?v))
+		(at start (camera_free ?s))
+		(at start (> (observation_point_need_image ?o) 0))
+    (at start (< (image_data ?v)(* (image_data_capacity ?v) 0.7))))
+	:effect (and
+ 	  (at start (not (available ?v)))
+	  (at end (available ?v))
+	  (at start (not (camera_free ?s)))
+	  (at end (camera_free ?s))
+		(at end (image_observed ?o))
+		(at end (increase (image_data ?v) (observation_point_need_image ?o))))
+)
+
+(:durative-action take-sample_data
+	:parameters (?v - robot_explorer ?o - observation_point ?wp - waypoint ?s - sensors)
+	:duration ( = ?duration 30)
+	:condition (and
+		(over all (robot_explorer_at ?v ?wp))
+		(over all (observation_at ?o  ?wp))
+		(over all (ob-explored  ?o))
+		(at start (available ?v))
+		(at start (scan_sensor_free ?s))
+		(at start (> (observation_point_need_data ?o) 0))
+    (at start (< (sample_data ?v)(* (sample_data_capacity ?v) 0.7))))
+	:effect (and
+ 	  (at start (not (available ?v)))
+	  (at end (available ?v))
+	  (at start (not (scan_sensor_free ?s)))
+    (at end (scan_sensor_free ?s))
+		(at end (sample_data_obtained ?o))
+		(at end (increase (sample_data ?v) (observation_point_need_data ?o))))
+)
+;; this actions establish the effect when in a particular point
+;; sample_data or image_sample are not required
+
+(:action check-sample_data
+  :parameters (?wp -waypoint ?o -observation_point)
+  :precondition (and
+	    	    (= (observation_point_need_data ?o) 0))
+  :effect (and
+	   (sample_data_obtained ?o))
+)
+(:action check-image_data
+  :parameters (?wp -waypoint ?o -observation_point )
+  :precondition (= (observation_point_need_image ?o) 0)
+  :effect (and
+	   (image_observed ?o))
+)
+;; this action is for scan analysis
+(:durative-action scan_processing
+	:parameters (?v - robot_explorer ?o - observation_point ?wp - waypoint ?s - sensors)
+	:duration ( = ?duration 50)
+	:condition (and
+	  (over all (robot_explorer_at ?v ?wp))
+		(over all (observation_at ?o  ?wp))
+		(at start (rotated ?v ?o))
+		(at start (available ?v))
+		(at start (scan_sensor_free ?s))
+    (at start (< (sample_data ?v)(* (sample_data_capacity ?v) 0.7))))
+	:effect (and
+	  (at start (not (available ?v)))
+	  (at end (available ?v))
+	  (at start (not (scan_sensor_free ?s)))
+	  (at end (scan_sensor_free ?s))
+		(at end (scan_measured ?o))
+		(at end (increase (sample_data ?v) 2)))
+)
+;; this action is for image detection
+(:durative-action target_id
+	:parameters (?v - robot_explorer ?o - observation_point ?wp - waypoint ?s - sensors)
+	:duration ( = ?duration 50)
+	:condition (and
+	  (at start (rotated ?v ?o))
+	  (over all (robot_explorer_at ?v ?wp))
+		(over all (observation_at ?o  ?wp))
+		(at start (available ?v))
+		(over all (robot_capable ?v))
+		(at start (camera_free ?s))
+    (at start (< (image_data ?v)(* (image_data_capacity ?v) 0.7))))
+	:effect (and
+    (at start (not (available ?v)))
+		(at end (available ?v))
+		(at start (not (camera_free ?s)))
+		(at end (camera_free ?s))
+		(at end (target_inquired ?o))
+		(at end (increase (image_data ?v) 2)))
+)
+)
