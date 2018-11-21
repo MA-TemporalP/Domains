@@ -33,7 +33,7 @@
         (sample_data_obtained ?o - observation_point)
         (scan_measured ?o - observation_point)
         (target_inquired ?o - observation_point)
-	(rotated ?v - robot ?o - observation_point)
+	(rotated ?r - robot ?o - observation_point)
 )
 
 (:functions
@@ -43,7 +43,7 @@
         (consumption_rate ?r - robot)
 	(energy ?r - robot)
 
-        (sample_data ?v - robot)
+        (sample_data ?r - robot)
         (sample_data_capacity ?r - robot)
         (image_data ?r - robot)
         (image_data_capacity ?r -robot)
@@ -79,7 +79,7 @@
 	:condition (and
 	       (over all (robot_at ?r ?wp))
    	       (over all (observation_at ?o  ?wp))
-               (at start (>= (energy ?v)  20)))
+               (at start (>= (energy ?r)  20)))
 	:effect (and
 		(at end (ob-explored  ?o))
 	        (at end (rotated ?r ?o))
@@ -108,7 +108,7 @@
 )
 
 (:durative-action undock
-	:parameters (?v - robot_explorer ?wp -waypoint)
+	:parameters (?r - robot_explorer ?wp -waypoint)
 	:duration ( = ?duration 10)
 	:condition (and
 		(over all (dock_at ?wp))
@@ -140,7 +140,7 @@
 		(over all (control_centre_at ?wp))
 		(at start (>= (image_data ?r) (* (image_data_capacity ?r) 0.7))))
         :effect (and
-	        (at end (assign (image_data ?v) 0)))
+	        (at end (assign (image_data ?r) 0)))
 )
 
 ;; the next three acctions are associated with the implementation of the data reading and camera
