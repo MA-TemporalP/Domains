@@ -14,8 +14,6 @@
         (control_centre_at ?wp -waypoint)
         (observation_at ?o - observation_point ?wp - waypoint)
 	(scan_sensor_free ?s - sensors)
-	(available ?r - robot)
-	(robot_capable  ?r - robot)
 	
         (undocked ?r - robot)
 	(docked ?r - robot)
@@ -132,13 +130,11 @@
 		(over all (robot_at ?r ?wp))
 		(over all (observation_at ?o  ?wp))
 		(over all (ob-explored  ?o))
-		(at start (available ?r))
 		(at start (scan_sensor_free ?s))
 		(at start (> (observation_point_need_data ?o) 0))
                 (at start (< (sample_data ?r)(* (sample_data_capacity ?r) 0.7))))
 	:effect (and
  	        (at start (not (available ?r)))
-	        (at end (available ?r))
 	        (at start (not (scan_sensor_free ?s)))
                 (at end (scan_sensor_free ?s))
 		(at end (sample_data_obtained ?o))
